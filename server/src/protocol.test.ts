@@ -111,3 +111,34 @@ test("Room ID Length - Too Long", () => {
   let id: string = "a".repeat(65);
   expect(parseClientMessage(`{"t":"join","room":"${id}"}`)).toBeNull;
 });
+
+// Extra fields - will be valid
+
+test("Extra Fields - Admin", () => {
+  expect(
+    parseClientMessage('{"t":"create","room":"abc123xyz","admin":true}'),
+  ).toEqual({
+    t: "create",
+    room: "abc123xyz",
+  });
+});
+
+test("Extra Fields - Room and Data", () => {
+  expect(
+    parseClientMessage('{"t":"signal","room":"abc123xyz","data":"HelloWorld"}'),
+  ).toEqual({
+    t: "signal",
+    data: "HelloWorld",
+  });
+});
+
+test("Extra Fields - Proto", () => {
+  expect(
+    parseClientMessage(
+      '{"t":"create","room":"abc123xyz","__proto__":{"admin":true}}',
+    ),
+  ).toEqual({
+    t: "create",
+    room: "abc123xyz",
+  });
+});
