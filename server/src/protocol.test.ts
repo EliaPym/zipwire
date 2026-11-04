@@ -1,26 +1,26 @@
 import { expect, test } from "vitest";
 import { parseClientMessage } from "../../shared/protocol.ts";
 
-// JSON Parsing tests - ignore TS errors, tests will still pass
+// JSON Parsing tests
 
 test("Not JSON - String", () => {
   expect(parseClientMessage("ThisIsNotJSON")).toBe(null);
 });
 
 test("Not JSON - Number", () => {
-  expect(parseClientMessage(42)).toBeNull();
+  expect(parseClientMessage("42")).toBeNull();
 });
 
 test("Not JSON - Null", () => {
-  expect(parseClientMessage(null)).toBeNull();
+  expect(parseClientMessage("null")).toBeNull();
 });
 
 test("Not JSON - Array", () => {
-  expect(parseClientMessage([])).toBeNull();
+  expect(parseClientMessage("[]")).toBeNull();
 });
 
 test("Not JSON - Empty Object", () => {
-  expect(parseClientMessage({})).toBeNull();
+  expect(parseClientMessage("{}")).toBeNull();
 });
 
 test("Not JSON - Bad JSON", () => {
@@ -71,7 +71,7 @@ test("Bad/Missing Field - Room Number", () => {
 });
 
 test("Bad/Missing Field - Room Spaces", () => {
-  expect(parseClientMessage('{"t":"join","room":abc 123 xyz}')).toBeNull();
+  expect(parseClientMessage('{"t":"join","room":"abc 123 xyz"}')).toBeNull();
 });
 
 test("Bad/Missing Field - Room Validation", () => {
