@@ -10,7 +10,7 @@ permissions:
     contents: read
 
 jobs:
-    check:
+    web:
         runs-on: ubuntu-latest
         defaults:
             run:
@@ -26,3 +26,19 @@ jobs:
           - run: npm run lint -- --deny-warnings
           - run: npx tsc -b
           - run: npm test --if-present
+    server:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: server
+        steps:
+          - uses: actions/checkout@v7
+          - uses: actions/setup-node@v7
+            with:
+                node-version: 24
+                cache: npm
+                cache-dependency-path: server/package-lock.json
+          - run: npm ci
+          - run: npm run lint -- --deny-warnings
+          - run: npx tsc -b
+          - run: npm test

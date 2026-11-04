@@ -4,12 +4,12 @@ const wss = new WebSocketServer({port: 8080});
 
 console.log("WebSocket server running: ws://localhost:8080");
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws: any) => {
     console.log("New client connected")
 
     ws.send("Welcome to the WebSocket Server")
 
-    ws.on("message", (m) => {
+    ws.on("message", (m: any) => {
         console.log(`Received: ${m}`)
         ws.send(`Server received ${m}`)
     });
