@@ -1,3 +1,12 @@
+const ROOM_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+const ERROR_CODES = ["bad-message", "room-exists", "no-room", "room-full"] as const;
+type ErrorCode = (typeof ERROR_CODES)[number];
+
+function isErrorCode(x: unknown): x is ErrorCode {
+  return ERROR_CODES.some((code) => code === x)
+}
+
 export type ClientMessage =
   | { t: "create"; room: string }
   | { t: "join"; room: string }
@@ -11,10 +20,8 @@ export type ServerMessage =
   | { t: "peer-left" }
   | {
     t: "error";
-    code: "bad-message" | "room-exists" | "no-room" | "room-full";
+    code: ErrorCode;
   };
-
-const ROOM_ID = /^[A-Za-z0-9_-]{8,64}$/;
 
 export function parseClientMessage(text: string): ClientMessage | null {
   let msg: unknown;
@@ -52,7 +59,7 @@ export function parseServerMessage(text: string): ServerMessage | null {
     return null;
   }
 
-  if (typeof msg !== "object" || msg == null || !("t" in msg)) return null;
+  if (typeof msg !== "object" || msg === null || !("t" in msg)) return null;
 
   switch (msg.t) {
     case "created":
@@ -66,10 +73,7 @@ export function parseServerMessage(text: string): ServerMessage | null {
     case "error":
       if (
         !("code" in msg) ||
-        (msg.code !== "bad-message" &&
-          msg.code !== "room-exists" &&
-          msg.code !== "no-room" &&
-          msg.code !== "room-full")
+        !isErrorCode(msg.code)
       )
         return null;
       return { t: "error", code: msg.code };
