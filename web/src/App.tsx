@@ -1,34 +1,28 @@
-import { useState } from 'react'
 import './App.css'
+import { create, getSocket } from "../../server/src/server"
+import type { ServerMessage } from '../../shared/protocol';
 
 function App() {
-  const [directory, setDirectory] = useState("")
+  let roomID: string = location.hash.slice(1);
 
-  const handleDirChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
+  if (roomID === "") {
 
-    if (!files || files.length === 0) {
-      setDirectory("");
-      return
-    }
+    // No fragment - this browser is host
+    let roomID: string = crypto.randomUUID.toString();
+    const socket = new WebSocket(`wss://localhost:8000/${roomID}`)
 
-    const relativePath = files[0].webkitRelativePath
+    let msg: ServerMessage = create(roomID, socket);
+  } else {
+    // Has fragment - this browser is receiver
+    let ws: WebSocket | ServerMessage = getSocket(roomID);
 
-    const folderName = relativePath.split("/")[0]
-
-    setDirectory(folderName)
+    // check if ws is a WebSocket or a ServerMessage
+    if()
   }
 
   return (
     <>
       <h1>zipwire</h1>
-      <p>Select Directory:</p>
-      <input
-        type="file"
-        {...{ webkitdirectory: '', directory: '', mozdirectory: '' }}
-        onChange={handleDirChange}
-      />
-      <p>Selected Directory: {directory}</p>
     </>
   )
 }

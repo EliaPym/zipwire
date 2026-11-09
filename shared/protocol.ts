@@ -4,7 +4,7 @@ const ERROR_CODES = ["bad-message", "room-exists", "no-room", "room-full"] as co
 type ErrorCode = (typeof ERROR_CODES)[number];
 
 function isErrorCode(x: unknown): x is ErrorCode {
-  return ERROR_CODES.some((code) => code === x)
+  return ERROR_CODES.some((code) => code === x);
 }
 
 export type ClientMessage =
@@ -12,6 +12,22 @@ export type ClientMessage =
   | { t: "join"; room: string }
   | { t: "signal"; data: string };
 
+/*
+const SERVER_CODES = ["created", "joined", "peer-joined", "signal", "peer-left", "error"] as const;
+type ServerCode = (typeof SERVER_CODES)[number];
+
+export type ServerMessage =
+  | { t: ServerCode }
+  | { t: ServerCode; data: string }
+  | {
+    t: ServerCode;
+    code: ErrorCode;
+  };
+
+export isServerCode(x: unknown): x is ServerCode {
+  return SERVER_CODES.some((code) => code === x);
+}
+*/
 export type ServerMessage =
   | { t: "created" }
   | { t: "joined" }
