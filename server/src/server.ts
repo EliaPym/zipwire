@@ -1,20 +1,32 @@
-import { WebSocketServer } from "ws";
-import { type ServerMessage } from "../../shared/protocol.ts";
+import { WebSocketServer, WebSocket, type RawData } from "ws";
+import { parseClientMessage, type ServerMessage } from "../../shared/protocol.ts";
 
-let rooms = new Map<string, WebSocket>();
+type Room = { host: WebSocket, receiver?: WebSocket };
 
-const wss = new WebSocketServer({port: 8080});
+let rooms = new Map<string, Room>();
 
-console.log("WebSocket server running: ws://localhost:8080");
+function send(ws: WebSocket, msg: ServerMessage) {
+    ws.send(JSON.stringify(msg));
+}
 
-wss.on("connection", (ws: any) => {
-    console.log("New client connected")
+function otherMember(room: Room, ws: WebSocket) {
+    return room.host === ws ? room.receiver : room.host;
+}
 
-    ws.send("Welcome to the WebSocket Server")
+const wss = new WebSocketServer({ port: 8080 });
 
-    ws.on("message", (m: any) => {
-        console.log(`Received: ${m}`)
-        ws.send(`Server received ${m}`)
+console.log("Signalling server running: ws://localhost:8080");
+
+wss.on("connection", (ws: WebSocket) => {
+    let roomID: string | undefined;
+
+    ws.on("message", (m: RawData) => {
+        const msg = parseClientMessage(m.toString());
+        if (msg === null) return send(ws, { t: "error", code: "bad-message" });
+
+        if (msg.t !== "signal" && roomID !== undefined) {
+            return send(ws, { t: "error", code: "bad-message" });
+        }
     });
 
     ws.on("close", () => {
@@ -23,9 +35,9 @@ wss.on("connection", (ws: any) => {
 });
 
 export function create(id: string, ws: WebSocket): ServerMessage {
-    if (rooms.has(id)) return { t: "error", code: "room-exists"};
+    if (rooms.has(id)) return { t: "error", code: "room-exists" };
 
-    rooms.set(id, ws);
+    rooms.set(id, { host: ws });
 
     // join room
     wss.on("connection", (ws: WebSocket) => {
@@ -35,13 +47,14 @@ export function create(id: string, ws: WebSocket): ServerMessage {
 }
 
 export function join(id: string, ws: WebSocket): ServerMessage {
-    if (!rooms.has(id)) return { t: "error", code: "no-room"};
+    if (!rooms.has(id)) return { t: "error", code: "no-room" };
 
-    // join room
-    wss.on("connection", (ws: WebSocket) => {
-        // connect websocket to room
+    let currentRoom = rooms.get(id);
 
-        // broadcast peer-joined to other users in the room
-    })
+    // to fix: when joining a room the socket needs to be added as the recipient
+    // need to figure out since receiver is an optional prop
+    currentRoom?.receiver = ws;
+
+    rooms[id] = {}
     return { t: "joined" };
 }
