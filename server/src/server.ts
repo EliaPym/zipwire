@@ -3,7 +3,7 @@ import { parseClientMessage, type ServerMessage } from "../../shared/protocol.ts
 
 type Room = { host: WebSocket, receiver?: WebSocket };
 
-let rooms = new Map<string, Room>();
+const rooms = new Map<string, Room>();
 
 function send(ws: WebSocket, msg: ServerMessage) {
     ws.send(JSON.stringify(msg));
@@ -55,9 +55,9 @@ wss.on("connection", (ws: WebSocket) => {
 
     ws.on("close", () => {
         if (roomID === undefined) return;
-        const room: Room | undefined = roomID ? rooms.get(roomID) : undefined;
+        const room = rooms.get(roomID);
         const otherPeer: WebSocket | undefined = room ? otherMember(room, ws) : undefined;
         if (otherPeer) send(otherPeer, { t: "peer-left" });
-        return rooms.delete(roomID);;
+        rooms.delete(roomID);
     });
 });
