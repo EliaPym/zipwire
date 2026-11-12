@@ -54,10 +54,10 @@ wss.on("connection", (ws: WebSocket) => {
     });
 
     ws.on("close", (ws: WebSocket) => {
+        if (roomID === undefined) return;
         const room: Room | undefined = roomID ? rooms.get(roomID) : undefined;
         const otherPeer: WebSocket | undefined = room ? otherMember(room, ws) : undefined;
-        if (roomID !== undefined) rooms.delete(roomID);
-        if (!otherPeer) return send(ws, { t: "error", code: "bad-message" });
-        return send(otherPeer, { t: "peer-joined" });
+        if (otherPeer) send(otherPeer, { t: "peer-left" });
+        return rooms.delete(roomID);;
     });
 });
