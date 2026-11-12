@@ -53,7 +53,7 @@ wss.on("connection", (ws: WebSocket) => {
         }
     });
 
-    ws.on("close", (ws: WebSocket) => {
+    ws.on("close", () => {
         if (roomID === undefined) return;
         const room: Room | undefined = roomID ? rooms.get(roomID) : undefined;
         const otherPeer: WebSocket | undefined = room ? otherMember(room, ws) : undefined;
