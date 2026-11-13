@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
-import { parseSignal, type SignalPayload} from "./signal";
+import { parseSignal, type SignalPayload } from "./signal";
 
 function App() {
   const [status, setStatus] = useState("Connecting...");
@@ -19,12 +19,21 @@ function App() {
     });
 
     const peerConnection = new RTCPeerConnection();
+
+    if (!isHost) {
+      peerConnection.addEventListener("datachannel", (e) => {
+        const channel = e.channel;
+        channel.addEventListener("open", () => setStatus("Channel open"));
+        channel.addEventListener("message", (m) => console.log("Received: ", m.data));
+      })
+    }
+
     const sendSignal = (payload: SignalPayload) => {
-      send({t: "signal", data: JSON.stringify(payload)});
+      send({ t: "signal", data: JSON.stringify(payload) });
     }
 
     peerConnection.addEventListener("icecandidate", (e) => {
-      if (e.candidate) sendSignal({ kind: "ice", candidate: e.candidate.toJSON()})
+      if (e.candidate) sendSignal({ kind: "ice", candidate: e.candidate.toJSON() })
     })
 
     ws.addEventListener("message", async (e) => {
@@ -45,10 +54,11 @@ function App() {
           const channel = peerConnection.createDataChannel("data");
           channel.addEventListener("open", () => {
             setStatus("Channel open")
+            channel.send("Hello World")
           });
           const offer = await peerConnection.createOffer();
           await peerConnection.setLocalDescription(offer);
-          sendSignal({ kind: "offer", sdp: offer.sdp! });
+          sendSignal({ kind: "offer", sdp: offer });
           break;
         }
         case "peer-left": {
@@ -58,7 +68,23 @@ function App() {
         case "signal": {
           const payload = parseSignal(msg.data);
           if (payload == null) return setStatus("Bad signal from peer");
-          
+          switch (payload.kind) {
+            case "offer": {
+              await peerConnection.setRemoteDescription(payload.sdp);
+              const answer = await peerConnection.createAnswer();
+              await peerConnection.setLocalDescription(answer);
+              sendSignal({ kind: "answer", sdp: answer });
+              break;
+            }
+            case "answer": {
+              await peerConnection.setRemoteDescription(payload.sdp);
+              break;
+            }
+            case "ice": {
+              peerConnection.addIceCandidate(payload.candidate);
+              break;
+            }
+          }
           break;
         }
         case "error": {
@@ -68,8 +94,10 @@ function App() {
       }
     })
 
-    peerConnection.close();
-    return () => ws.close();
+    return () => {
+      ws.close()
+      peerConnection.close();
+    };
   }, [])
 
   return (
