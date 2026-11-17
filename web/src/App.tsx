@@ -1,23 +1,77 @@
-import { useEffect, useState } from 'react'
-import './App.css'
+import { useEffect, useRef, useState } from "react";
+import "./App.css";
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
+import { parseSignal, type SignalPayload } from "./signal";
+
+const fragment: string = location.hash.slice(1);
+const isHost: boolean = fragment === "";
 
 function App() {
   const [status, setStatus] = useState("Connecting...");
 
+  const [download, setDownload] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const channelRef = useRef<RTCDataChannel | null>(null);
+
+  async function sendFile(file: File) {
+    const channel = channelRef.current;
+    if (channel?.readyState !== "open")
+      return setStatus("No receiver connected yet");
+    try {
+      channel.send(JSON.stringify({ name: file.name, size: file.size }));
+      channel.send(await file.arrayBuffer());
+      setStatus(`Sent ${file.name}`);
+    } catch (err) {
+      setStatus(`Send failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  function safeName(name: unknown): string {
+    if (typeof name !== "string") return "download";
+    return name.replace(/[\\/\p{Cc}]/gu, "_").slice(0, 200) || "download";
+  }
+
   useEffect(() => {
-    const fragment: string = location.hash.slice(1);
-    const isHost: boolean = fragment === "";
     const roomID: string = isHost ? crypto.randomUUID() : fragment;
 
     const ws: WebSocket = new WebSocket("ws://localhost:8080");
     const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
 
     ws.addEventListener("open", () => {
-      send(isHost ? { t: "create", room: roomID } : { t: "join", room: roomID })
+      send(
+        isHost ? { t: "create", room: roomID } : { t: "join", room: roomID },
+      );
     });
 
-    ws.addEventListener("message", (e) => {
+    const peerConnection = new RTCPeerConnection();
+
+    if (!isHost) {
+      peerConnection.addEventListener("datachannel", (e) => {
+        const channel = e.channel;
+        channel.addEventListener("open", () => setStatus("Channel open"));
+        channel.binaryType = "arraybuffer";
+        let name = "download";
+        channel.addEventListener("message", (m) => {
+          if (typeof m.data === "string")
+            name = safeName(JSON.parse(m.data).name);
+          else
+            setDownload({ url: URL.createObjectURL(new Blob([m.data])), name });
+        });
+      });
+    }
+
+    const sendSignal = (payload: SignalPayload) => {
+      send({ t: "signal", data: JSON.stringify(payload) });
+    };
+
+    peerConnection.addEventListener("icecandidate", (e) => {
+      if (e.candidate)
+        sendSignal({ kind: "ice", candidate: e.candidate.toJSON() });
+    });
+
+    ws.addEventListener("message", async (e) => {
       const msg = parseServerMessage(e.data);
       if (msg === null) return setStatus("Null received from server");
 
@@ -32,10 +86,40 @@ function App() {
         }
         case "peer-joined": {
           setStatus("Peer connected");
+          const channel = peerConnection.createDataChannel("data");
+          channelRef.current = channel;
+          channel.addEventListener("open", () => {
+            setStatus("Channel open");
+          });
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+          sendSignal({ kind: "offer", sdp: offer });
           break;
         }
         case "peer-left": {
           setStatus(`${isHost ? "Peer" : "Host"} left`);
+          break;
+        }
+        case "signal": {
+          const payload = parseSignal(msg.data);
+          if (payload == null) return setStatus("Bad signal from peer");
+          switch (payload.kind) {
+            case "offer": {
+              await peerConnection.setRemoteDescription(payload.sdp);
+              const answer = await peerConnection.createAnswer();
+              await peerConnection.setLocalDescription(answer);
+              sendSignal({ kind: "answer", sdp: answer });
+              break;
+            }
+            case "answer": {
+              await peerConnection.setRemoteDescription(payload.sdp);
+              break;
+            }
+            case "ice": {
+              peerConnection.addIceCandidate(payload.candidate);
+              break;
+            }
+          }
           break;
         }
         case "error": {
@@ -43,17 +127,34 @@ function App() {
           break;
         }
       }
-    })
+    });
 
-    return () => ws.close()
-  }, [])
+    return () => {
+      ws.close();
+      peerConnection.close();
+    };
+  }, []);
 
   return (
     <>
       <h1>zipwire</h1>
       <p>{status}</p>
+      {isHost && (
+        <input
+          type="file"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) sendFile(file);
+          }}
+        />
+      )}
+      {download && (
+        <a href={download.url} download={download.name}>
+          Save {download.name}
+        </a>
+      )}
     </>
-  )
+  );
 }
 
-export default App
+export default App;
