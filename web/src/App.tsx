@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
 import { parseSignal, type SignalPayload } from "./signal";
+import { manifest, parsePayload, type Payload } from "./transfer";
 
 const fragment: string = location.hash.slice(1);
 const isHost: boolean = fragment === "";
 
 function App() {
   const [status, setStatus] = useState("Connecting...");
+
+  const [file, setFile] = useState<{
+    file: File
+  }>();
 
   const [download, setDownload] = useState<{
     url: string;
@@ -20,7 +25,8 @@ function App() {
     if (channel?.readyState !== "open")
       return setStatus("No receiver connected yet");
     try {
-      channel.send(JSON.stringify({ name: file.name, size: file.size }));
+      let p: Payload = { t: "metadata", name: file.name, size: file.size };
+      channel.send(JSON.stringify(p));
       channel.send(await file.arrayBuffer());
       setStatus(`Sent ${file.name}`);
     } catch (err) {
@@ -54,8 +60,12 @@ function App() {
         channel.binaryType = "arraybuffer";
         let name = "download";
         channel.addEventListener("message", (m) => {
-          if (typeof m.data === "string")
-            name = safeName(JSON.parse(m.data).name);
+          if (typeof m.data === "string") {
+            let d = parsePayload(m.data);
+            if (d?.t === "manifest") setStatus(`Manifest Received. Files are: ${d.files.map((f) => f.name + "\n")}`)
+            if (d?.t === "metadata") setStatus(`File: ${d.name}, ${d.size}`)
+            else name = safeName(JSON.parse(m.data).name);
+          }
           else
             setDownload({ url: URL.createObjectURL(new Blob([m.data])), name });
         });
@@ -144,7 +154,24 @@ function App() {
           type="file"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) sendFile(file);
+            if (file) {
+              setFile({ file })
+              const d: Payload = manifest(file);
+              if (d) {
+                channelRef.current?.send(JSON.stringify(d))
+                setStatus("Sent manifest")
+              }
+              else setStatus("File error!");
+            };
+          }}
+        />
+      )}
+      {(file !== undefined) && (
+        <input
+          type="button"
+          value="Send"
+          onClick={() => {
+            sendFile(file.file)
           }}
         />
       )}
