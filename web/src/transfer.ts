@@ -79,15 +79,6 @@ export function manifest(f: File): Payload {
    return m;
 }
 
-export function chunk(f: File[]): ArrayBuffer | null {
-   let fileID: number = 0;
-   f.forEach(function (file) {
-      fileID++;
-      const chunkCount: number = Math.ceil(file.size / CHUNK_SIZE);
-   });
-   return null;
-}
-
 export function frame(fileID: number, index: number, payload: ArrayBuffer) {
    const out = new Uint8Array(HEADER_SIZE + payload.byteLength);
    const view = new DataView(out.buffer);
