@@ -64,13 +64,18 @@ function App() {
             channel.addEventListener("message", (m) => {
                if (typeof m.data === "string") {
                   let d = parsePayload(m.data);
-                  if (d?.t === "manifest")
-                     setStatus(
-                        `Manifest Received. Files are: ${d.files.map((f) => f.name + "\n")}`,
-                     );
-                  if (d?.t === "metadata")
-                     setStatus(`File: ${d.name}, ${d.size}`);
-                  else name = safeName(JSON.parse(m.data).name);
+                  switch (d?.t) {
+                     case "manifest":
+                        setStatus(
+                           `Manifest Received. Files are: ${d.files.map((f) => f.name)}`,
+                        );
+                        break;
+                     case "metadata":
+                        setStatus(`File: ${d.name}, ${d.size}`);
+                        break;
+                     default:
+                        name = safeName(JSON.parse(m.data).name);
+                  }
                } else
                   setDownload({
                      url: URL.createObjectURL(new Blob([m.data])),
