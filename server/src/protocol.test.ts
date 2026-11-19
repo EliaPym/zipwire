@@ -53,7 +53,9 @@ test("Valid - Signal", () => {
 // Unknown type tests
 
 test("Unknown Type - Different Type", () => {
-   expect(parseClientMessage('{"t":"wrongtype","room":"abc123xyz"}')).toBeNull();
+   expect(
+      parseClientMessage('{"t":"wrongtype","room":"abc123xyz"}'),
+   ).toBeNull();
 });
 
 test("Unknown Type - Capslock", () => {
@@ -83,7 +85,9 @@ test("Bad/Missing Field - No Data", () => {
 });
 
 test("Bad/Missing Field - Data is Object", () => {
-   expect(parseClientMessage('{"t":"signal","data":{"kind":"offer"}}')).toBeNull();
+   expect(
+      parseClientMessage('{"t":"signal","data":{"kind":"offer"}}'),
+   ).toBeNull();
 });
 
 // Room ID length tests
@@ -125,7 +129,9 @@ test("Extra Fields - Admin", () => {
 
 test("Extra Fields - Room and Data", () => {
    expect(
-      parseClientMessage('{"t":"signal","room":"abc123xyz","data":"HelloWorld"}'),
+      parseClientMessage(
+         '{"t":"signal","room":"abc123xyz","data":"HelloWorld"}',
+      ),
    ).toEqual({
       t: "signal",
       data: "HelloWorld",

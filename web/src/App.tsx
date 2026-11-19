@@ -47,7 +47,9 @@ function App() {
 
       ws.addEventListener("open", () => {
          send(
-            isHost ? { t: "create", room: roomID } : { t: "join", room: roomID },
+            isHost
+               ? { t: "create", room: roomID }
+               : { t: "join", room: roomID },
          );
       });
 
@@ -62,12 +64,18 @@ function App() {
             channel.addEventListener("message", (m) => {
                if (typeof m.data === "string") {
                   let d = parsePayload(m.data);
-                  if (d?.t === "manifest") setStatus(`Manifest Received. Files are: ${d.files.map((f) => f.name + "\n")}`);
-                  if (d?.t === "metadata") setStatus(`File: ${d.name}, ${d.size}`);
+                  if (d?.t === "manifest")
+                     setStatus(
+                        `Manifest Received. Files are: ${d.files.map((f) => f.name + "\n")}`,
+                     );
+                  if (d?.t === "metadata")
+                     setStatus(`File: ${d.name}, ${d.size}`);
                   else name = safeName(JSON.parse(m.data).name);
-               }
-               else
-                  setDownload({ url: URL.createObjectURL(new Blob([m.data])), name });
+               } else
+                  setDownload({
+                     url: URL.createObjectURL(new Blob([m.data])),
+                     name,
+                  });
             });
          });
       }
@@ -160,13 +168,12 @@ function App() {
                      if (d) {
                         channelRef.current?.send(JSON.stringify(d));
                         setStatus("Sent manifest");
-                     }
-                     else setStatus("File error!");
-                  };
+                     } else setStatus("File error!");
+                  }
                }}
             />
          )}
-         {(file !== undefined) && (
+         {file !== undefined && (
             <input
                type="button"
                value="Send"

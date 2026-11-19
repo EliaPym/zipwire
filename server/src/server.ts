@@ -4,7 +4,7 @@ import {
    type ServerMessage,
 } from "../../shared/protocol.ts";
 
-type Room = { host: WebSocket; receiver?: WebSocket; };
+type Room = { host: WebSocket; receiver?: WebSocket };
 
 const rooms = new Map<string, Room>();
 
@@ -56,11 +56,14 @@ wss.on("connection", (ws: WebSocket) => {
             return send(room.host, { t: "peer-joined" });
          }
          case "signal": {
-            const room: Room | undefined = roomID ? rooms.get(roomID) : undefined;
+            const room: Room | undefined = roomID
+               ? rooms.get(roomID)
+               : undefined;
             const otherPeer: WebSocket | undefined = room
                ? otherMember(room, ws)
                : undefined;
-            if (!otherPeer) return send(ws, { t: "error", code: "bad-message" });
+            if (!otherPeer)
+               return send(ws, { t: "error", code: "bad-message" });
             return send(otherPeer, msg);
          }
       }
