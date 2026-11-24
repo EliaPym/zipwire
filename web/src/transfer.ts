@@ -6,7 +6,7 @@ const LOW_WATER = 1024 * 1024;
 
 export const chunkCount = (size: number) => Math.ceil(size / CHUNK_SIZE);
 
-type Files = {
+type ManifestFileData = {
    id: number;
    name: string;
    size: number;
@@ -14,22 +14,41 @@ type Files = {
    path?: string;
 };
 
-function isFiles(x: unknown): x is Files[] {
-   if (typeof x !== "object" || x === null || !Array.isArray(x)) return false;
-   return (
-      "id" in x[0] &&
-      typeof x[0].id === "number" &&
-      "name" in x[0] &&
-      typeof x[0].name === "string" &&
-      "size" in x[0] &&
-      typeof x[0].size === "number" &&
-      "type" in x[0] &&
-      typeof x[0].type === "string"
-   );
+function isID(x: unknown): x is number {
+   return typeof x === "number" && x >= 0 && x <= 0xffffffff;
+}
+
+function isFile(data: unknown): data is ManifestFileData {
+   if (typeof data !== "object" || data === null) return false;
+
+   if (
+      "id" in data &&
+      isID(data.id) &&
+      "name" in data &&
+      typeof data.name === "string" &&
+      "size" in data &&
+      typeof data.size === "number" &&
+      data.size > 0 &&
+      "type" in data &&
+      typeof data.type === "string"
+   )
+      return true;
+   return false;
+}
+
+function isFiles(x: unknown): x is ManifestFileData[] {
+   if (x === null || !Array.isArray(x)) return false;
+   const files: ManifestFileData[] = [];
+   for (const item of x) {
+      if (!isFile(item)) return false;
+      files.push(item);
+   }
+   const ids = new Set(files.map((f) => f.id));
+   return ids.size === files.length;
 }
 
 export type Payload =
-   | { t: "manifest"; id: number; files: Files[]; chunkSize: number }
+   | { t: "manifest"; id: number; files: ManifestFileData[]; chunkSize: number }
    | { t: "metadata"; name: string; size: number }
    | { t: "accept"; fileIDs: number[] }
    | { t: "reject" }
@@ -58,12 +77,38 @@ export function parsePayload(data: string): Payload | null {
             typeof p.chunkSize !== "number"
          )
             return null;
-         return {
-            t: "manifest",
-            id: p.id,
-            files: p.files,
-            chunkSize: p.chunkSize
-         };
+         return { t: p.t, id: p.id, files: p.files, chunkSize: p.chunkSize };
+      case "metadata":
+         if (
+            !("name" in p) ||
+            typeof p.name !== "string" ||
+            !("size" in p) ||
+            typeof p.size !== "number"
+         )
+            return null;
+         return { t: p.t, name: p.name, size: p.size };
+      case "accept":
+         if (!("fileIDs" in p) || !Array.isArray(p.fileIDs)) return null;
+         let isStrArr: boolean = true;
+         p.fileIDs.forEach(function (f) {
+            if (typeof f !== "string") isStrArr = false;
+         });
+         return isStrArr ? { t: p.t, fileIDs: p.fileIDs } : null;
+      case "file-end":
+         if (
+            !("fileID" in p) ||
+            !isID(p.fileID) ||
+            !("chunks" in p) ||
+            typeof p.chunks !== "number"
+         )
+            return null;
+         return { t: p.t, fileID: p.fileID, chunks: p.chunks };
+      case "file-ok":
+         if (!("fileID" in p) || !isID(p.fileID)) return null;
+         return { t: p.t, fileID: p.fileID };
+      case "reject":
+      case "abort":
+         return { t: p.t };
       default:
          return null;
    }

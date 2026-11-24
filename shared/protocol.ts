@@ -1,11 +1,6 @@
 const ROOM_ID = /^[A-Za-z0-9_-]{8,64}$/;
 
-const ERROR_CODES = [
-   "bad-message",
-   "room-exists",
-   "no-room",
-   "room-full",
-] as const;
+const ERROR_CODES = ["bad-message", "room-exists", "no-room", "room-full"] as const;
 type ErrorCode = (typeof ERROR_CODES)[number];
 
 function isErrorCode(x: unknown): x is ErrorCode {
@@ -41,11 +36,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
    switch (msg.t) {
       case "create":
       case "join":
-         if (
-            !("room" in msg) ||
-            typeof msg.room !== "string" ||
-            !ROOM_ID.test(msg.room)
-         )
+         if (!("room" in msg) || typeof msg.room !== "string" || !ROOM_ID.test(msg.room))
             return null;
          return { t: msg.t, room: msg.room };
       case "signal":
