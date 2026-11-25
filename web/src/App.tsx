@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
 import { parseSignal, type SignalPayload } from "./signal";
-import { createManifest, parsePayload, sendChunks, type Payload } from "./transfer";
+import { createManifest, parsePayload, sendChunks, unchunk, type Payload } from "./transfer";
 
 const fragment: string = location.hash.slice(1);
 const isHost: boolean = fragment === "";
@@ -70,15 +70,21 @@ function App() {
                      case "file-ok":
                      // todo
                      case "file-end":
-                     // todo
+                        if (!("fileID" in d) || !("chunks" in d)) break;
+                        const file = expected.find((f) => f.id === d.fileID);
+                        const blob = file && unchunk(received, file, d.chunks);
+                        received = [];
+                        if (!file || !blob) {
+                           setStatus("Transfer failed: file incomplete");
+                           break;
+                        }
+                        setDownload({ url: URL.createObjectURL(blob), name: safeName(file.name) });
+                        setStatus(`Received ${file.name}`);
+                        break;
                      default:
-                        name = safeName(JSON.parse(msg.data).name);
+                        break;
                   }
-               } else
-                  setDownload({
-                     url: URL.createObjectURL(new Blob([msg.data])),
-                     name
-                  });
+               } else received.push(msg.data);
             });
          });
       }
