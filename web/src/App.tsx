@@ -30,7 +30,7 @@ function App() {
    useEffect(() => {
       const roomID: string = isHost ? crypto.randomUUID() : fragment;
 
-      const ws: WebSocket = new WebSocket("ws://localhost:8080");
+      const ws: WebSocket = new WebSocket("/ws");
       const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
 
       ws.addEventListener("open", () => {
