@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
 import { parseSignal, type SignalPayload } from "./signal";
-import { manifest, parsePayload, type Payload } from "./transfer";
+import { createManifest, parsePayload, sendChunks, type Payload } from "./transfer";
 
 const fragment: string = location.hash.slice(1);
 const isHost: boolean = fragment === "";
@@ -10,29 +10,17 @@ const isHost: boolean = fragment === "";
 function App() {
    const [status, setStatus] = useState("Connecting...");
 
-   const [file, setFile] = useState<{
-      file: File;
-   }>();
+   const [files, setFiles] = useState<File[]>();
 
    const [download, setDownload] = useState<{
       url: string;
       name: string;
    } | null>(null);
    const channelRef = useRef<RTCDataChannel | null>(null);
+   const fileRef = useRef<File[]>([]);
 
-   async function sendFile(file: File) {
-      const channel = channelRef.current;
-      if (channel?.readyState !== "open")
-         return setStatus("No receiver connected yet");
-      try {
-         let p: Payload = { t: "metadata", name: file.name, size: file.size };
-         channel.send(JSON.stringify(p));
-         channel.send(await file.arrayBuffer());
-         setStatus(`Sent ${file.name}`);
-      } catch (err) {
-         setStatus(`Send failed: ${err instanceof Error ? err.message : err}`);
-      }
-   }
+   type ManifestPayload = Extract<Payload, { t: "manifest" }>;
+   const [manifest, setManifest] = useState<ManifestPayload>();
 
    function safeName(name: unknown): string {
       if (typeof name !== "string") return "download";
@@ -46,11 +34,7 @@ function App() {
       const send = (msg: ClientMessage) => ws.send(JSON.stringify(msg));
 
       ws.addEventListener("open", () => {
-         send(
-            isHost
-               ? { t: "create", room: roomID }
-               : { t: "join", room: roomID },
-         );
+         send(isHost ? { t: "create", room: roomID } : { t: "join", room: roomID });
       });
 
       const peerConnection = new RTCPeerConnection();
@@ -58,28 +42,40 @@ function App() {
       if (!isHost) {
          peerConnection.addEventListener("datachannel", (e) => {
             const channel = e.channel;
+            channelRef.current = channel;
             channel.addEventListener("open", () => setStatus("Channel open"));
             channel.binaryType = "arraybuffer";
             let name = "download";
-            channel.addEventListener("message", (m) => {
-               if (typeof m.data === "string") {
-                  let d = parsePayload(m.data);
+            channel.addEventListener("message", (msg) => {
+               if (typeof msg.data === "string") {
+                  let d = parsePayload(msg.data);
                   switch (d?.t) {
                      case "manifest":
-                        setStatus(
-                           `Manifest Received. Files are: ${d.files.map((f) => f.name)}`,
-                        );
+                        let m: Payload | null = parsePayload(msg.data);
+                        if (!m || m.t !== "manifest") {
+                           setStatus("Error with manifest");
+                           channelRef.current?.send(JSON.stringify({ t: "reject" }));
+                           break;
+                        }
+                        setManifest(m);
+                        setStatus(`Manifest received.`);
                         break;
                      case "metadata":
                         setStatus(`File: ${d.name}, ${d.size}`);
                         break;
+                     case "abort":
+                     // todo
+                     case "file-ok":
+                     // todo
+                     case "file-end":
+                     // todo
                      default:
-                        name = safeName(JSON.parse(m.data).name);
+                        name = safeName(JSON.parse(msg.data).name);
                   }
                } else
                   setDownload({
-                     url: URL.createObjectURL(new Blob([m.data])),
-                     name,
+                     url: URL.createObjectURL(new Blob([msg.data])),
+                     name
                   });
             });
          });
@@ -90,8 +86,7 @@ function App() {
       };
 
       peerConnection.addEventListener("icecandidate", (e) => {
-         if (e.candidate)
-            sendSignal({ kind: "ice", candidate: e.candidate.toJSON() });
+         if (e.candidate) sendSignal({ kind: "ice", candidate: e.candidate.toJSON() });
       });
 
       ws.addEventListener("message", async (e) => {
@@ -113,6 +108,28 @@ function App() {
                channelRef.current = channel;
                channel.addEventListener("open", () => {
                   setStatus("Channel open");
+               });
+               channel.addEventListener("message", async (msg) => {
+                  const d = typeof msg.data === "string" ? parsePayload(msg.data) : null;
+                  switch (d?.t) {
+                     case "accept":
+                        const offered = fileRef.current;
+                        fileRef.current = [];
+                        setStatus("Sending files");
+                        try {
+                           for (const id of d.fileIDs) {
+                              if (offered[id]) await sendChunks(channel, offered[id], id, () => {});
+                           }
+                        } catch (err) {
+                           setStatus(`Send failed: ${err instanceof Error ? err.message : err}`);
+                        }
+                        break;
+                     case "reject":
+                        setStatus("Peer rejected transfer");
+                        break;
+                     default:
+                        break;
+                  }
                });
                const offer = await peerConnection.createOffer();
                await peerConnection.setLocalDescription(offer);
@@ -168,24 +185,50 @@ function App() {
                onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                     setFile({ file });
-                     const d: Payload = manifest(file);
-                     if (d) {
-                        channelRef.current?.send(JSON.stringify(d));
-                        setStatus("Sent manifest");
-                     } else setStatus("File error!");
+                     const selectedFiles = [file];
+                     setFiles(selectedFiles);
+                     setManifest(createManifest(selectedFiles));
                   }
                }}
             />
          )}
-         {file !== undefined && (
+         {files !== undefined && (
             <input
                type="button"
-               value="Send"
+               value="Confirm"
                onClick={() => {
-                  sendFile(file.file);
+                  if (manifest) {
+                     fileRef.current = files;
+                     channelRef.current?.send(JSON.stringify(manifest));
+                     setStatus("Awaiting peer confirmation");
+                  } else setStatus("Manifest error");
                }}
             />
+         )}
+         {!isHost && manifest !== undefined && (
+            <div>
+               <input
+                  type="button"
+                  value="Start Download"
+                  onClick={() => {
+                     const fileIDs: number[] = [];
+                     manifest.files.forEach(function (f) {
+                        fileIDs.push(f.id);
+                     });
+                     channelRef.current?.send(JSON.stringify({ t: "accept", fileIDs: fileIDs }));
+                  }}
+               />
+               <p>Transfer ID: {manifest.id}</p>
+               <p>Number of files: {manifest.files.length}</p>
+               <p>Files (name | type | size):</p>
+               {manifest.files.map(function (f, i) {
+                  return (
+                     <ul key={f.id}>
+                        {++i}. {f.name} | {f.type} | {f.size}
+                     </ul>
+                  );
+               })}
+            </div>
          )}
          {download && (
             <a href={download.url} download={download.name}>

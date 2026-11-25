@@ -18,7 +18,7 @@ function isID(x: unknown): x is number {
    return typeof x === "number" && x >= 0 && x <= 0xffffffff;
 }
 
-function isFile(data: unknown): data is ManifestFileData {
+function isFileData(data: unknown): data is ManifestFileData {
    if (typeof data !== "object" || data === null) return false;
 
    if (
@@ -36,11 +36,11 @@ function isFile(data: unknown): data is ManifestFileData {
    return false;
 }
 
-function isFiles(x: unknown): x is ManifestFileData[] {
+function isFilesData(x: unknown): x is ManifestFileData[] {
    if (x === null || !Array.isArray(x)) return false;
    const files: ManifestFileData[] = [];
    for (const item of x) {
-      if (!isFile(item)) return false;
+      if (!isFileData(item)) return false;
       files.push(item);
    }
    const ids = new Set(files.map((f) => f.id));
@@ -72,7 +72,7 @@ export function parsePayload(data: string): Payload | null {
             !("id" in p) ||
             typeof p.id !== "number" ||
             !("files" in p) ||
-            !isFiles(p.files) ||
+            !isFilesData(p.files) ||
             !("chunkSize" in p) ||
             typeof p.chunkSize !== "number"
          )
@@ -88,12 +88,8 @@ export function parsePayload(data: string): Payload | null {
             return null;
          return { t: p.t, name: p.name, size: p.size };
       case "accept":
-         if (!("fileIDs" in p) || !Array.isArray(p.fileIDs)) return null;
-         let isStrArr: boolean = true;
-         p.fileIDs.forEach(function (f) {
-            if (typeof f !== "string") isStrArr = false;
-         });
-         return isStrArr ? { t: p.t, fileIDs: p.fileIDs } : null;
+         if (!("fileIDs" in p) || !Array.isArray(p.fileIDs) || !p.fileIDs.every(isID)) return null;
+         return { t: p.t, fileIDs: p.fileIDs };
       case "file-end":
          if (
             !("fileID" in p) ||
@@ -114,14 +110,18 @@ export function parsePayload(data: string): Payload | null {
    }
 }
 
-export function manifest(f: File): Payload {
-   let m: Payload = {
+export function createManifest(files: File[]): Extract<Payload, { t: "manifest" }> {
+   const mfd: ManifestFileData[] = [];
+   files.forEach(function (f) {
+      mfd.push({ id: mfd.length, name: f.name, size: f.size, type: f.type });
+   });
+   let msg: Payload = {
       t: "manifest",
       id: 0,
-      files: [{ id: 0, name: f.name, size: f.size, type: f.type }],
+      files: mfd,
       chunkSize: CHUNK_SIZE
    };
-   return m;
+   return msg;
 }
 
 export function frame(fileID: number, index: number, payload: ArrayBuffer) {
@@ -147,7 +147,7 @@ export function drained(channel: RTCDataChannel) {
    return new Promise<void>((resolve) => {
       const ac = new AbortController();
       const done = () => {
-         ac.abort;
+         ac.abort();
          resolve();
       };
       channel.addEventListener("bufferedamountlow", done, { signal: ac.signal });
