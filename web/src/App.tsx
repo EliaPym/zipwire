@@ -45,7 +45,8 @@ function App() {
             channelRef.current = channel;
             channel.addEventListener("open", () => setStatus("Channel open"));
             channel.binaryType = "arraybuffer";
-            let name = "download";
+            let expected: ManifestPayload["files"] = [];
+            let received: ArrayBuffer[] = [];
             channel.addEventListener("message", (msg) => {
                if (typeof msg.data === "string") {
                   let d = parsePayload(msg.data);
@@ -58,6 +59,7 @@ function App() {
                            break;
                         }
                         setManifest(m);
+                        expected = m.files;
                         setStatus(`Manifest received.`);
                         break;
                      case "metadata":

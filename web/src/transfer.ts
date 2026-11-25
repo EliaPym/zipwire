@@ -28,7 +28,7 @@ function isFileData(data: unknown): data is ManifestFileData {
       typeof data.name === "string" &&
       "size" in data &&
       typeof data.size === "number" &&
-      data.size > 0 &&
+      data.size >= 0 &&
       "type" in data &&
       typeof data.type === "string"
    )
@@ -172,4 +172,21 @@ export async function sendChunks(
    }
    const end: Payload = { t: "file-end", fileID: fileID, chunks };
    channel.send(JSON.stringify(end));
+}
+
+export function unchunk(
+   messages: ArrayBuffer[],
+   file: ManifestFileData,
+   count: number
+): Blob | null {
+   const parts: Uint8Array<ArrayBuffer>[] = [];
+   for (const msg of messages) {
+      const c = unframe(msg);
+      if (!c || c.fileID !== file.id || c.index !== parts.length) return null;
+      parts.push(c.payload);
+   }
+   const bytes = parts.reduce((n, p) => n + p.byteLength, 0);
+   if (parts.length !== count || bytes !== file.size) return null;
+   return new Blob(parts, { type: file.type });
+   return null;
 }
