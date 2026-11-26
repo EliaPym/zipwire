@@ -188,5 +188,4 @@ export function unchunk(
    const bytes = parts.reduce((n, p) => n + p.byteLength, 0);
    if (parts.length !== count || bytes !== file.size) return null;
    return new Blob(parts, { type: file.type });
-   return null;
 }
