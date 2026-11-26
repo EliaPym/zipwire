@@ -10,7 +10,7 @@ permissions:
    contents: read
 
 jobs:
-   root:
+   ci:
       runs-on: ubuntu-latest
       steps:
          - uses: actions/checkout@v7
@@ -18,36 +18,8 @@ jobs:
            with:
               node-version: 24
               cache: npm
-              cache-dependency-path: package-lock.json
          - run: npm ci
          - run: npm run lint -- --deny-warnings
-   web:
-      runs-on: ubuntu-latest
-      defaults:
-         run:
-            working-directory: web
-      steps:
-         - uses: actions/checkout@v7
-         - uses: actions/setup-node@v7
-           with:
-              node-version: 24
-              cache: npm
-              cache-dependency-path: web/package-lock.json
-         - run: npm ci
-         - run: npm run build
-         - run: npm test --if-present
-   server:
-      runs-on: ubuntu-latest
-      defaults:
-         run:
-            working-directory: server
-      steps:
-         - uses: actions/checkout@v7
-         - uses: actions/setup-node@v7
-           with:
-              node-version: 24
-              cache: npm
-              cache-dependency-path: server/package-lock.json
-         - run: npm ci
-         - run: npm run typecheck
+         - run: npm run build -w web
+         - run: npm run typecheck -w server
          - run: npm test
