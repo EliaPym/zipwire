@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import "./App.css";
 import { parseServerMessage, type ClientMessage } from "../../shared/protocol";
 import { parseSignal, type SignalPayload } from "./signal";
 import { createManifest, parsePayload, sendChunks, unchunk, type Payload } from "./transfer";
