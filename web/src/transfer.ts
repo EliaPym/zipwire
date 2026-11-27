@@ -1,3 +1,5 @@
+import { parseObject } from "../../shared/protocol.ts";
+
 export const CHUNK_SIZE: number = 1024 * 64; // 64 KiB chunk size
 const HEADER_SIZE: number = Uint32Array.BYTES_PER_ELEMENT * 2; // 8-byte header
 
@@ -57,54 +59,50 @@ export type Payload =
    | { t: "abort" };
 
 export function parsePayload(data: string): Payload | null {
-   let p: unknown;
-   try {
-      p = JSON.parse(data);
-   } catch {
-      return null;
-   }
+   let msg = parseObject(data);
 
-   if (typeof p !== "object" || p === null || !("t" in p)) return null;
+   if (!msg) return null;
 
-   switch (p.t) {
+   switch (msg.t) {
       case "manifest":
          if (
-            !("id" in p) ||
-            typeof p.id !== "number" ||
-            !("files" in p) ||
-            !isFilesData(p.files) ||
-            !("chunkSize" in p) ||
-            typeof p.chunkSize !== "number"
+            !("id" in msg) ||
+            typeof msg.id !== "number" ||
+            !("files" in msg) ||
+            !isFilesData(msg.files) ||
+            !("chunkSize" in msg) ||
+            typeof msg.chunkSize !== "number"
          )
             return null;
-         return { t: p.t, id: p.id, files: p.files, chunkSize: p.chunkSize };
+         return { t: msg.t, id: msg.id, files: msg.files, chunkSize: msg.chunkSize };
       case "metadata":
          if (
-            !("name" in p) ||
-            typeof p.name !== "string" ||
-            !("size" in p) ||
-            typeof p.size !== "number"
+            !("name" in msg) ||
+            typeof msg.name !== "string" ||
+            !("size" in msg) ||
+            typeof msg.size !== "number"
          )
             return null;
-         return { t: p.t, name: p.name, size: p.size };
+         return { t: msg.t, name: msg.name, size: msg.size };
       case "accept":
-         if (!("fileIDs" in p) || !Array.isArray(p.fileIDs) || !p.fileIDs.every(isID)) return null;
-         return { t: p.t, fileIDs: p.fileIDs };
+         if (!("fileIDs" in msg) || !Array.isArray(msg.fileIDs) || !msg.fileIDs.every(isID))
+            return null;
+         return { t: msg.t, fileIDs: msg.fileIDs };
       case "file-end":
          if (
-            !("fileID" in p) ||
-            !isID(p.fileID) ||
-            !("chunks" in p) ||
-            typeof p.chunks !== "number"
+            !("fileID" in msg) ||
+            !isID(msg.fileID) ||
+            !("chunks" in msg) ||
+            typeof msg.chunks !== "number"
          )
             return null;
-         return { t: p.t, fileID: p.fileID, chunks: p.chunks };
+         return { t: msg.t, fileID: msg.fileID, chunks: msg.chunks };
       case "file-ok":
-         if (!("fileID" in p) || !isID(p.fileID)) return null;
-         return { t: p.t, fileID: p.fileID };
+         if (!("fileID" in msg) || !isID(msg.fileID)) return null;
+         return { t: msg.t, fileID: msg.fileID };
       case "reject":
       case "abort":
-         return { t: p.t };
+         return { t: msg.t };
       default:
          return null;
    }

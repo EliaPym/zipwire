@@ -23,39 +23,39 @@ export type ServerMessage =
         code: ErrorCode;
      };
 
-export function parseClientMessage(text: string): ClientMessage | null {
+export function parseObject(data: string): Record<string, unknown> | null {
    let msg: unknown;
    try {
-      msg = JSON.parse(text);
+      msg = JSON.parse(data);
    } catch {
       return null;
    }
 
-   if (typeof msg !== "object" || msg === null || !("t" in msg)) return null;
+   return typeof msg === "object" && msg !== null && "t" in msg ? msg : null;
+}
+
+export function parseClientMessage(data: string): ClientMessage | null {
+   let msg = parseObject(data);
+
+   if (!msg) return null;
 
    switch (msg.t) {
       case "create":
       case "join":
-         if (!("room" in msg) || typeof msg.room !== "string" || !ROOM_ID.test(msg.room))
-            return null;
-         return { t: msg.t, room: msg.room };
+         return typeof msg.room === "string" && ROOM_ID.test(msg.room)
+            ? { t: msg.t, room: msg.room }
+            : null;
       case "signal":
-         if (!("data" in msg) || typeof msg.data !== "string") return null;
-         return { t: "signal", data: msg.data };
+         return typeof msg.data === "string" ? { t: "signal", data: msg.data } : null;
       default:
          return null;
    }
 }
 
-export function parseServerMessage(text: string): ServerMessage | null {
-   let msg: unknown;
-   try {
-      msg = JSON.parse(text);
-   } catch {
-      return null;
-   }
+export function parseServerMessage(data: string): ServerMessage | null {
+   let msg = parseObject(data);
 
-   if (typeof msg !== "object" || msg === null || !("t" in msg)) return null;
+   if (!msg) return null;
 
    switch (msg.t) {
       case "created":
@@ -64,11 +64,9 @@ export function parseServerMessage(text: string): ServerMessage | null {
       case "peer-left":
          return { t: msg.t };
       case "signal":
-         if (!("data" in msg) || typeof msg.data !== "string") return null;
-         return { t: "signal", data: msg.data };
+         return typeof msg.data === "string" ? { t: "signal", data: msg.data } : null;
       case "error":
-         if (!("code" in msg) || !isErrorCode(msg.code)) return null;
-         return { t: "error", code: msg.code };
+         return isErrorCode(msg.code) ? { t: "error", code: msg.code } : null;
       default:
          return null;
    }
