@@ -51,14 +51,8 @@ function App() {
                   let d = parsePayload(msg.data);
                   switch (d?.t) {
                      case "manifest":
-                        let m: Payload | null = parsePayload(msg.data);
-                        if (!m || m.t !== "manifest") {
-                           setStatus("Error with manifest");
-                           channelRef.current?.send(JSON.stringify({ t: "reject" }));
-                           break;
-                        }
-                        setManifest(m);
-                        expected = m.files;
+                        setManifest(d);
+                        expected = d.files;
                         setStatus(`Manifest received.`);
                         break;
                      case "metadata":
@@ -218,10 +212,7 @@ function App() {
                   type="button"
                   value="Start Download"
                   onClick={() => {
-                     const fileIDs: number[] = [];
-                     manifest.files.forEach(function (f) {
-                        fileIDs.push(f.id);
-                     });
+                     const fileIDs: number[] = manifest.files.map((f) => f.id);
                      channelRef.current?.send(JSON.stringify({ t: "accept", fileIDs: fileIDs }));
                   }}
                />

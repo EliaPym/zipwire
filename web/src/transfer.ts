@@ -37,14 +37,7 @@ function isFileData(data: unknown): data is ManifestFileData {
 }
 
 function isFilesData(x: unknown): x is ManifestFileData[] {
-   if (x === null || !Array.isArray(x)) return false;
-   const files: ManifestFileData[] = [];
-   for (const item of x) {
-      if (!isFileData(item)) return false;
-      files.push(item);
-   }
-   const ids = new Set(files.map((f) => f.id));
-   return ids.size === files.length;
+   return Array.isArray(x) && x.every(isFileData) && new Set(x.map((f) => f.id)).size === x.length;
 }
 
 export type Payload =
@@ -104,10 +97,12 @@ export function parsePayload(data: string): Payload | null {
 }
 
 export function createManifest(files: File[]): Extract<Payload, { t: "manifest" }> {
-   const mfd: ManifestFileData[] = [];
-   files.forEach(function (f) {
-      mfd.push({ id: mfd.length, name: f.name, size: f.size, type: f.type });
-   });
+   const mfd: ManifestFileData[] = files.map((f, i) => ({
+      id: i,
+      name: f.name,
+      size: f.size,
+      type: f.type
+   }));
    return {
       t: "manifest",
       id: 0,
