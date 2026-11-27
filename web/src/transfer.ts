@@ -23,7 +23,7 @@ function isID(x: unknown): x is number {
 function isFileData(data: unknown): data is ManifestFileData {
    if (typeof data !== "object" || data === null) return false;
 
-   if (
+   return (
       "id" in data &&
       isID(data.id) &&
       "name" in data &&
@@ -33,9 +33,7 @@ function isFileData(data: unknown): data is ManifestFileData {
       data.size >= 0 &&
       "type" in data &&
       typeof data.type === "string"
-   )
-      return true;
-   return false;
+   );
 }
 
 function isFilesData(x: unknown): x is ManifestFileData[] {
@@ -66,40 +64,37 @@ export function parsePayload(data: string): Payload | null {
    switch (msg.t) {
       case "manifest":
          if (
-            !("id" in msg) ||
-            typeof msg.id !== "number" ||
-            !("files" in msg) ||
-            !isFilesData(msg.files) ||
-            !("chunkSize" in msg) ||
-            typeof msg.chunkSize !== "number"
+            "id" in msg &&
+            typeof msg.id === "number" &&
+            "files" in msg &&
+            isFilesData(msg.files) &&
+            "chunkSize" in msg &&
+            typeof msg.chunkSize === "number"
          )
-            return null;
-         return { t: msg.t, id: msg.id, files: msg.files, chunkSize: msg.chunkSize };
+            return { t: msg.t, id: msg.id, files: msg.files, chunkSize: msg.chunkSize };
+         return null;
       case "metadata":
          if (
-            !("name" in msg) ||
-            typeof msg.name !== "string" ||
-            !("size" in msg) ||
-            typeof msg.size !== "number"
+            "name" in msg &&
+            typeof msg.name === "string" &&
+            "size" in msg &&
+            typeof msg.size === "number"
          )
-            return null;
-         return { t: msg.t, name: msg.name, size: msg.size };
+            return { t: msg.t, name: msg.name, size: msg.size };
+         return null;
       case "accept":
-         if (!("fileIDs" in msg) || !Array.isArray(msg.fileIDs) || !msg.fileIDs.every(isID))
-            return null;
-         return { t: msg.t, fileIDs: msg.fileIDs };
+         return "fileIDs" in msg && Array.isArray(msg.fileIDs) && msg.fileIDs.every(isID)
+            ? { t: msg.t, fileIDs: msg.fileIDs }
+            : null;
       case "file-end":
-         if (
-            !("fileID" in msg) ||
-            !isID(msg.fileID) ||
-            !("chunks" in msg) ||
-            typeof msg.chunks !== "number"
-         )
-            return null;
-         return { t: msg.t, fileID: msg.fileID, chunks: msg.chunks };
+         return "fileID" in msg &&
+            isID(msg.fileID) &&
+            "chunks" in msg &&
+            typeof msg.chunks === "number"
+            ? { t: msg.t, fileID: msg.fileID, chunks: msg.chunks }
+            : null;
       case "file-ok":
-         if (!("fileID" in msg) || !isID(msg.fileID)) return null;
-         return { t: msg.t, fileID: msg.fileID };
+         return "fileID" in msg && isID(msg.fileID) ? { t: msg.t, fileID: msg.fileID } : null;
       case "reject":
       case "abort":
          return { t: msg.t };
@@ -113,13 +108,12 @@ export function createManifest(files: File[]): Extract<Payload, { t: "manifest" 
    files.forEach(function (f) {
       mfd.push({ id: mfd.length, name: f.name, size: f.size, type: f.type });
    });
-   let msg: Payload = {
+   return {
       t: "manifest",
       id: 0,
       files: mfd,
       chunkSize: CHUNK_SIZE
    };
-   return msg;
 }
 
 export function frame(fileID: number, index: number, payload: ArrayBuffer) {

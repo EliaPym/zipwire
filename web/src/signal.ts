@@ -12,12 +12,13 @@ export function parseSignal(data: string): SignalPayload | null {
    switch (msg.kind) {
       case "offer":
       case "answer":
-         if (!("sdp" in msg) || typeof msg.sdp !== "object") return null;
-         return { kind: msg.kind, sdp: msg.sdp as RTCSessionDescriptionInit };
+         return "sdp" in msg && typeof msg.sdp === "object"
+            ? { kind: msg.kind, sdp: msg.sdp as RTCSessionDescriptionInit }
+            : null;
       case "ice":
-         if (!("candidate" in msg) || typeof msg.candidate !== "object" || msg.candidate === null)
-            return null;
-         return { kind: "ice", candidate: msg.candidate as RTCIceCandidateInit };
+         return "candidate" in msg && typeof msg.candidate === "object" && msg.candidate !== null
+            ? { kind: "ice", candidate: msg.candidate as RTCIceCandidateInit }
+            : null;
       default:
          return null;
    }
